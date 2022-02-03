@@ -2,8 +2,10 @@
 #include "ros/ros.h"
 #include "std_srvs/Empty.h"
 #include "assigmentRT2/serviceForAssigment.h"
+#include "stdlib.h"
 
 int userInteraction();
+void clear();
 
 int main(int argc, char **argv)
 {
@@ -24,6 +26,7 @@ int main(int argc, char **argv)
 
     while (ros::ok())
     {
+        clear();
         letter = userInteraction();
         if (letter == 'w')
         {
@@ -70,7 +73,19 @@ int main(int argc, char **argv)
 
 int userInteraction()
 {
+    // TODO Better UI/UX
     char input;
     input = getchar();
     return input;
+}
+
+void clear()
+{
+#if defined(__linux__) || defined(__unix__) || defined(__APPLE__)
+    system("clear");
+#endif
+
+#if defined(_WIN32) || defined(_WIN64)
+    system("cls");
+#endif
 }
