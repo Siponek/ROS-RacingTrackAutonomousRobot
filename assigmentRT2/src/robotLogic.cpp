@@ -31,7 +31,7 @@
 
 /*
 What to do:
-- The robot drives forward DONE
+- The robot moves forward DONE
 - Robot turns DONE
 - Robot Reset DONE
     Found service at rosservice list/ echo/ type type: std_srvs/Empty.h
@@ -48,24 +48,48 @@ What to do:
 
 //? class for containing the distances of scanner readings
 //? 180 degrees are divided into 5 sections
-//? (front is for trying to eliminate "drunk driver effect"):
-//?  frontObstacle    - 85-95
-//?  rightFarObstacle - 150-180
-//?  rightObstacle    - 95-150
-//?  leftFarObstacle  - 0-30
-//?  leftObstacle     - 30-85
-class scannerDataClass
-{                            // The class
-public:                      // Access specifier
-  _Float32 frontObstacle;    // Attribute
-  _Float32 rightFarObstacle; // Attribute
-  _Float32 rightObstacle;    // Attribute
-  _Float32 leftFarObstacle;  // Attribute
-  _Float32 leftObstacle;     // Attribute
-  std::vector<float> arrayOfAvg{rightFarObstacle, rightObstacle, frontObstacle, leftObstacle, leftFarObstacle};
+//? (front is for trying to eliminate "drunk mover effect"):
+//?  frontObst    - 85-95
+//?  leftFarObst - 150-180
+//?  leftObs    - 95-150
+//?  rightFarObst  - 0-30
+//?  rightObs     - 30-85
+// TODO maxObstacleDistanceAvg not working bcs it does not aquire new values, need to try to make it a method and push back the values?
+// TODO Make methods that aquire values of a class!
 
-  float maxAvg = *std::max_element(std::begin(arrayOfAvg), std::end(arrayOfAvg));
-  float minAvg = *std::min_element(std::begin(arrayOfAvg), std::end(arrayOfAvg));
+class scannerDataClass
+{                        // The class
+public:                  // Access specifier
+  _Float32 frontObst;    // Attribute
+  _Float32 leftFarObst;  // Attribute
+  _Float32 leftObs;      // Attribute
+  _Float32 rightFarObst; // Attribute
+  _Float32 rightObs;
+  ; // Attribute
+
+  float maxObstacleDistanceAvg()
+  {
+    std::vector<float> arrayOfAvg{leftFarObst, leftObs, frontObst, rightObs, rightFarObst};
+    return *std::max_element(std::begin(arrayOfAvg), std::end(arrayOfAvg));
+  }
+  float minObstacleDistanceAvg()
+  {
+    std::vector<float> arrayOfAvg{leftFarObst, leftObs, frontObst, rightObs, rightFarObst};
+
+    return *std::min_element(std::begin(arrayOfAvg), std::end(arrayOfAvg));
+  }
+  float meanOfRight()
+  {
+    std::vector<float> arrayOfAvg{leftFarObst, leftObs};
+
+    return (arrayOfAvg.at(0) + arrayOfAvg.at(1)) / arrayOfAvg.size();
+  }
+  float meanOfLeft()
+  {
+    std::vector<float> arrayOfAvg{rightFarObst, rightObs};
+
+    return (arrayOfAvg.at(0) + arrayOfAvg.at(1)) / arrayOfAvg.size();
+  }
 };
 
 scannerDataClass robotScanner;
@@ -79,20 +103,22 @@ ros::ServiceServer serverVelDecrease; // UI SERVICES
 geometry_msgs::Twist vel;
 
 int userMultiplier = 0;
-float maxAvg = robotScanner.maxAvg;
 
 bool resetRobotPosition(std_srvs::Empty::Request &req, std_srvs::Empty::Response &res);
 void robotSensorFunc(const sensor_msgs::LaserScan::ConstPtr &spaghetti);
 bool velocity_increaseCallback(assigmentRT2::serviceForAssigment::Request &req, assigmentRT2::serviceForAssigment::Response &res);
 bool velocity_decreaseCallback(assigmentRT2::serviceForAssigment::Request &req, assigmentRT2::serviceForAssigment::Response &res);
-void drive(float velocity);
-void driveTurn(float turnVelocity, float driveVelocity, bool side);
+void move(float velocity);
+void moveTurn(float turnVelocity, float moveVelocity, bool side);
 
 int main(int argc, char **argv)
 {
   // Initialize the node, setup the NodeHandle for handling the communication with the ROS //system
   ros::init(argc, argv, "robotLogic");
   ros::NodeHandle nHandler;
+  // ros::Rate loopRate(5);
+  float maxObstacleDistanceAvg = 0;
+  float minObstacleDistanceAvg = 0;
 
   // call the service for reseting the robot's position || need to make a advertiser for publishing
   sClientForReset = nHandler.serviceClient<std_srvs::Empty>("/reset_positions");
@@ -103,51 +129,108 @@ int main(int argc, char **argv)
   serverVelIncrease = nHandler.advertiseService("/velocity_increase", velocity_increaseCallback);
   serverVelDecrease = nHandler.advertiseService("/velocity_decrease", velocity_decreaseCallback);
 
-  //! autonomous drive algorythm
+  //! autonomous move algorythm
   while (ros::ok())
   {
+    // printf("\nThis is the vector at %d place -> %f\n", 0, robotScanner.arrayOfAvg.at(2));
+    // printf("This is the max element of vector %f\n", robotScanner.maxObstacleDistanceAvg());
+    // printf("This is the min element of vector %f\n", robotScanner.minObstacleDistanceAvg());
 
     // TODO swap sides since side -> right now
     // system("clear");
-    // ROS_INFO("This is the RIGHTFAR AVG: %f", robotScanner.rightFarObstacle);
-    // ROS_INFO("This is the RIGHT AVG: %f", robotScanner.rightObstacle);
-    // ROS_INFO("This is the FRONT AVG: %f", robotScanner.frontObstacle);
-    // ROS_INFO("This is the LEFT AVG: %f", robotScanner.leftObstacle);
-    // ROS_INFO("This is the LEFTFAR AVG: %f", robotScanner.leftFarObstacle);
-    // ROS_INFO("This is the max avg %f", robotScanner.maxAvg);
+    // ROS_INFO("This is the RIGHTFAR AVG: %f", robotScanner.leftFarObst);
+    // ROS_INFO("This is the RIGHT AVG: %f", robotScanner.leftObs);
+    // ROS_INFO("This is the FRONT AVG: %f", robotScanner.frontObst);
+    // ROS_INFO("This is the LEFT AVG: %f", robotScanner.rightObs);
+    // ROS_INFO("This is the LEFTFAR AVG: %f", robotScanner.rightFarObst);
+    maxObstacleDistanceAvg = robotScanner.maxObstacleDistanceAvg();
+    minObstacleDistanceAvg = robotScanner.minObstacleDistanceAvg();
 
-    if (maxAvg * 0.9 < robotScanner.rightFarObstacle)
-    {
-      ROS_INFO("TURNING FAR LEFT");
+    // ROS_INFO("This is the leftObs avg     %f", robotScanner.leftObs);
+    // ROS_INFO("This is the rightObs avg      %f", robotScanner.rightObs);
+    // ROS_INFO("This is the leftFarObst avg  %f", robotScanner.leftFarObst);
+    // ROS_INFO("This is the rightFarObst avg   %f", robotScanner.rightFarObst);
+    // ROS_INFO("This is the front avg             %f", robotScanner.frontObst);
+    // ROS_INFO("This is the mean left   %f", robotScanner.meanOfLeft());
+    // ROS_INFO("This is the mean right  %f", robotScanner.meanOfRight());
 
-      driveTurn(5 * robotScanner.minAvg, 5, true);
-    }
-    else if (maxAvg * 0.9 < robotScanner.rightObstacle)
+    if (maxObstacleDistanceAvg - robotScanner.rightObs < 0.01)
     {
       ROS_INFO("TURNING LEFT");
-
-      driveTurn(5 * robotScanner.minAvg, 5, true);
+      moveTurn(5 * minObstacleDistanceAvg, 10 * minObstacleDistanceAvg, false);
     }
-    else if (maxAvg * 0.9 < robotScanner.leftObstacle)
+    else if (maxObstacleDistanceAvg - robotScanner.leftObs < 0.01)
     {
       ROS_INFO("TURNING RIGHT");
 
-      driveTurn(5 * robotScanner.minAvg, 5, false);
+      moveTurn(5 * minObstacleDistanceAvg, 10 * minObstacleDistanceAvg, true);
     }
-    else if (maxAvg * 0.9 < robotScanner.leftFarObstacle)
+    else if (maxObstacleDistanceAvg - robotScanner.rightFarObst < 0.01)
+    {
+      ROS_INFO("TURNING FAR LEFT");
+      moveTurn(15, 2, false);
+    }
+    else if (maxObstacleDistanceAvg - robotScanner.leftFarObst < 0.01)
     {
       ROS_INFO("TURNING FAR RIGHT");
 
-      driveTurn(10 * robotScanner.minAvg, 5, false);
+      moveTurn(15, 2, true);
     }
     else
     {
       ROS_INFO("FORWARD");
 
-      drive(50 * maxAvg);
+      move(5 * maxObstacleDistanceAvg);
     }
 
-    usleep(9000);
+    //! Python algo
+    /*if (abs(robotScanner.meanOfLeft() - robotScanner.meanOfRight()) > 1)
+    {
+      if (robotScanner.meanOfLeft() > robotScanner.meanOfRight())
+      {
+        if (robotScanner.meanOfLeft())
+        moveTurn(5 * minObstacleDistanceAvg, 10 * minObstacleDistanceAvg, false);
+      }
+      else
+      {
+        moveTurn(5 * minObstacleDistanceAvg, 10 * minObstacleDistanceAvg, true);
+      }
+    }
+    else
+    {
+      move(10 * minObstacleDistanceAvg);
+    }
+    */
+
+    //! not so good algo
+    /*if (robotScanner.leftObs <= maxObstacleDistanceAvg)
+    {
+      // ROS_INFO("TURNING LEFT");
+      moveTurn(5 * minObstacleDistanceAvg, 10 * minObstacleDistanceAvg, true);
+    }
+    else if (robotScanner.rightObs < 1.7)
+    {
+      // ROS_INFO("TURNING RIGHT");
+      moveTurn(5 * minObstacleDistanceAvg, 10 * minObstacleDistanceAvg, false);
+    }
+    else if (robotScanner.leftFarObst < 1.1)
+    {
+      // ROS_INFO("TURNING FAR LEFT");
+      moveTurn(10 * minObstacleDistanceAvg, 5 * minObstacleDistanceAvg, true);
+    }
+    else if (robotScanner.rightFarObst < 1.1)
+    {
+      // ROS_INFO("TURNING FAR RIGHT");
+      moveTurn(10 * minObstacleDistanceAvg, 5 * minObstacleDistanceAvg, false);
+    }
+    else
+    {
+      // ROS_INFO("FORWARD");
+      move(20 * minObstacleDistanceAvg);
+    }
+    */
+
+    // usleep(100);
     ros::spinOnce();
     // ros::spin();
   }
@@ -200,11 +283,11 @@ bool resetRobotPosition(std_srvs::Empty::Request &req, std_srvs::Empty::Response
 
 void robotSensorFunc(const sensor_msgs::LaserScan::ConstPtr &spaghetti)
 {
-  //?  frontObstacle    - 85-95
-  //?  rightFarObstacle - 150-180
-  //?  rightObstacle    - 95-150
-  //?  leftFarObstacle  - 0-30
-  //?  leftObstacle     - 30-85
+  //?  frontObst    - 85-95
+  //?  leftFarObst - 150-180
+  //?  leftObs    - 95-150
+  //?  rightFarObst  - 0-30
+  //?  rightObs     - 30-85
   // To access members of a class through a pointer,
   // use the arrow operator.
   // ranges is a <array> or an vector data type and thus supports .size()
@@ -244,36 +327,35 @@ void robotSensorFunc(const sensor_msgs::LaserScan::ConstPtr &spaghetti)
   }
   averageRightFar /= i;
 
-  robotScanner.frontObstacle = averageFront;
-  robotScanner.rightFarObstacle = averageRightFar;
-  robotScanner.rightObstacle = averageRight;
-  robotScanner.leftFarObstacle = averageLeftFar;
-  robotScanner.leftObstacle = averageLeft;
-  maxAvg = robotScanner.maxAvg;
-  ROS_INFO("This is the RIGHTFAR AVG: %f", robotScanner.rightFarObstacle);
-  ROS_INFO("This is the RIGHT AVG: %f", robotScanner.rightObstacle);
-  ROS_INFO("This is the FRONT AVG: %f", robotScanner.frontObstacle);
-  ROS_INFO("This is the LEFT AVG: %f", robotScanner.leftObstacle);
-  ROS_INFO("This is the LEFTFAR AVG: %f", robotScanner.leftFarObstacle);
-  ROS_INFO("This is the max avg %f", robotScanner.maxAvg);
+  ROS_INFO("averageFront %f", averageFront);
+  ROS_INFO("averageRightFar %f", averageRightFar);
+  ROS_INFO("averageRight %f", averageRight);
+  ROS_INFO("averageLeftFar %f", averageLeftFar);
+  ROS_INFO("averageLeft %f", averageLeft);
+
+  robotScanner.frontObst = averageFront;
+  robotScanner.leftFarObst = averageRightFar;
+  robotScanner.leftObs = averageRight;
+  robotScanner.rightFarObst = averageLeftFar;
+  robotScanner.rightObs = averageLeft;
 }
 
-void drive(float velocity)
+void move(float velocity)
 {
   vel.linear.x = velocity;
   pubVel.publish(vel);
 }
-void driveTurn(float turnVelocity, float driveVelocity, bool side)
+void moveTurn(float turnVelocity, float moveVelocity, bool side)
 {
-  vel.linear.x = driveVelocity;
+  vel.linear.x = moveVelocity;
   if (side)
   {
-    // Turn LEFT
+    // Left turn
     vel.angular.z = turnVelocity;
   }
   else
   {
-    // Turn RIGHT
+    // Right turn
     vel.angular.z = -turnVelocity;
   }
   pubVel.publish(vel);
