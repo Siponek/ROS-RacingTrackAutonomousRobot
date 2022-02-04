@@ -3,6 +3,7 @@
 #include "std_srvs/Empty.h"
 #include "assigmentRT2/serviceForAssigment.h"
 #include "stdlib.h"
+#include <iostream>
 
 int userInteraction();
 void clear();
@@ -26,15 +27,17 @@ int main(int argc, char **argv)
 
     while (ros::ok())
     {
-        clear();
+        fflush(stdout);
+        // clear();
         letter = userInteraction();
         if (letter == 'w')
         {
             velocityIncreaseClient.waitForExistence();
             if (velocityIncreaseClient.call(velocityServiceRequest))
             {
-                ROS_INFO("robotUI_> increase velocity");
-                ROS_INFO("%s", velocityServiceRequest.response.message.c_str());
+                clear();
+                std::cout << ("robotUI_> increase velocity");
+                std::cout << ("\r%s", velocityServiceRequest.response.message.c_str());
             }
             else
             {
@@ -46,8 +49,9 @@ int main(int argc, char **argv)
             velocityDecreaseClient.waitForExistence();
             if (velocityDecreaseClient.call(velocityServiceRequest))
             {
-                ROS_INFO("robotUI_>  decrease velocity");
-                ROS_INFO("%s", velocityServiceRequest.response.message.c_str());
+                // clear();
+                std::cout << ("robotUI_>  decrease velocity\r") << std::endl;
+                std::cout << ("\r%s", velocityServiceRequest.response.message.c_str());
             }
             else
             {
@@ -59,7 +63,7 @@ int main(int argc, char **argv)
             robotReset.waitForExistence();
             if (robotReset.call(resetServiceRequest))
             {
-                ROS_INFO("robotUI_>  RESET");
+                std::cout << ("\rrobotUI_>  RESET");
             }
             else
             {
