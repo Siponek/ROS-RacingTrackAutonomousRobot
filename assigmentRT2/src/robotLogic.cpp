@@ -123,7 +123,7 @@ int main(int argc, char **argv)
   // Initialize the node, setup the NodeHandle for handling the communication with the ROS //system
   ros::init(argc, argv, "robotLogic");
   ros::NodeHandle nHandler;
-  ros::Rate loopRate(50);
+  ros::Rate loopRate(100);
   float maxObstacleDistanceAvg = 0;
   float minObstacleDistanceAvg = 0;
   float diffJump = 0;
@@ -139,11 +139,12 @@ int main(int argc, char **argv)
   float difference;
 
   //! autonomous move algorythm
+  //* the algorythm uses mean of average distances to dictate to which side the robot should turn
+  //* For the velocity it uses fucntion [primaryVelocity]*1/[difference]+1 to get  to "1" when mean of
+  //* distances from both sides is not so diffrent
   while (ros::ok())
   {
-    // TODO swap sides since side -> right now
-    // system("clear");
-
+    sClientForReset.waitForExistence();
     maxObstacleDistanceAvg = robotScanner.maxObstacleDistanceAvg();
     minObstacleDistanceAvg = robotScanner.minObstacleDistanceAvg();
 
@@ -154,6 +155,7 @@ int main(int argc, char **argv)
     // ROS_INFO("This is the front avg         %f", robotScanner.frontObst);
     // ROS_INFO("This is the mean left         %f", robotScanner.meanOfLeft());
     // ROS_INFO("This is the mean right        %f", robotScanner.meanOfRight());
+
     difference = robotScanner.meanOfLeft() - robotScanner.meanOfRight();
     ROS_INFO("difference        %f", difference);
     if (difference > 0)
@@ -177,8 +179,8 @@ bool velocity_increaseCallback(assigmentRT2::serviceForAssigment::Request &req, 
 {
 
   primaryVelocity += 1;
-  char *messageToSend = "Current user velocity _>";
-  asprintf(&messageToSend, "%f", primaryVelocity);
+  std::string messageToSend = "Current user velocity _>" + std::to_string(primaryVelocity);
+  // asprintf(&messageToSend, "%f", primaryVelocity);
   res.message = messageToSend;
 
   ROS_INFO("W KEY DETECTED!");
@@ -191,8 +193,8 @@ bool velocity_increaseCallback(assigmentRT2::serviceForAssigment::Request &req, 
 bool velocity_decreaseCallback(assigmentRT2::serviceForAssigment::Request &req, assigmentRT2::serviceForAssigment::Response &res)
 {
   primaryVelocity -= 1;
-  char *messageToSend = "Current user velocity _>";
-  asprintf(&messageToSend, "%f", primaryVelocity);
+  std::string messageToSend = "Current user velocity _>" + std::to_string(primaryVelocity);
+  // asprintf(&messageToSend, "%f", primaryVelocity);
   res.message = messageToSend;
 
   ROS_INFO("S KEY DETECTED!");
