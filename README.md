@@ -1,4 +1,5 @@
 # Photorealistic simulator of a robot racing as live online experience in real time
+![](githubGIF.gif)
 
 ## Description
 An assignment of the "Research Track 1" course from Università di Genova.
